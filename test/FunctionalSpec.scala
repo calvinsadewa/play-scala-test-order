@@ -1,86 +1,44 @@
 
-import controllers.{HomeController, OrderTransactionController}
+import controllers.OrderTransactionController
+import models.{OrderInBrowse, OrderInBrowseAccessLayer}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.mockito.MockitoSugar
 import play.api.test._
 import play.api.test.Helpers._
 import org.scalatestplus.play._
 import org.scalatestplus.play.guice._
-import play.api.test.CSRFTokenHelper._
+import org.mockito.Mockito._
 
-class FunctionalSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
+import scala.concurrent.Future
 
-  def dateIs(date: java.util.Date, str: String) = {
-    new java.text.SimpleDateFormat("yyyy-MM-dd").format(date) == str
-  }
-
-  def homeController = app.injector.instanceOf(classOf[HomeController])
-  def orderTransactionController = app.injector.instanceOf(classOf[OrderTransactionController])
-
-  "HomeController" should {
-
-    "redirect to the computer list on /" in {
-      val result = homeController.index(FakeRequest())
-
-      status(result) must equal(SEE_OTHER)
-      redirectLocation(result) mustBe Some("/computers")
-    }
-
-    "list computers on the the first page" in {
-      val result = homeController.list(0, 2, "")(FakeRequest())
-
-      status(result) must equal(OK)
-      contentAsString(result) must include("574 computers found")
-    }
-
-    "filter computer by name" in {
-      val result = homeController.list(0, 2, "Apple")(FakeRequest())
-
-      status(result) must equal(OK)
-      contentAsString(result) must include("13 computers found")
-    }
-
-    //running(FakeApplication(additionalConfiguration = inMemoryDatabase())) {
-
-    "create new computer" in {
-      val badResult = homeController.save(FakeRequest().withCSRFToken)
-
-      status(badResult) must equal(BAD_REQUEST)
-
-      val badDateFormat = homeController.save(
-        FakeRequest().withFormUrlEncodedBody("name" -> "FooBar", "introduced" -> "badbadbad", "company" -> "1").withCSRFToken
-      )
-
-      status(badDateFormat) must equal(BAD_REQUEST)
-      contentAsString(badDateFormat) must include("""<option value="1" selected="selected">Apple Inc.</option>""")
-      contentAsString(badDateFormat) must include("""<input type="text" id="introduced" name="introduced" value="badbadbad" """)
-      contentAsString(badDateFormat) must include("""<input type="text" id="name" name="name" value="FooBar" """)
-
-
-      val result = homeController.save(
-        FakeRequest().withFormUrlEncodedBody("name" -> "FooBar", "introduced" -> "2011-12-24", "company" -> "1").withCSRFToken
-      )
-
-      status(result) must equal(SEE_OTHER)
-      redirectLocation(result) mustBe Some("/computers")
-      flash(result).get("success") mustBe Some("Computer FooBar has been created")
-
-      val list = homeController.list(0, 2, "FooBar")(FakeRequest())
-
-      status(list) must equal(OK)
-      contentAsString(list) must include("One computer found")
-    }
-  }
+class FunctionalSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures with MockitoSugar{
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   "OrderTransactionController" should {
+    import OrderTransactionController._
+    import models.OrderJsonConverter._
+    val mockorderbrowseacl = mock[OrderInBrowseAccessLayer]
+    val orderTransactionController = new OrderTransactionController(stubControllerComponents(),mockorderbrowseacl)
+    val consumer_request = FakeRequest(GET,s"/bla?API_KEY=$CUSTOMER_API_KEY")
     "deny unauthorized request" in {
       val r1 = orderTransactionController.getBrowse(0)(FakeRequest())
       status(r1) must equal(UNAUTHORIZED)
     }
-    "pass authorized request" in {
-      import OrderTransactionController._
-      val consumer_request = FakeRequest(GET,s"/bla?API_KEY=$CUSTOMER_API_KEY")
-      val r1 = orderTransactionController.getBrowse(0)(consumer_request)
+
+    "get browsing order" in {
+      var dummyOrder = new OrderInBrowse(3,List(),5,Some(1),None)
+      when(mockorderbrowseacl.getByUserId(10)).thenReturn(Future(dummyOrder))
+      val r1 = orderTransactionController.getBrowse(10)(consumer_request)
       status(r1) must equal(OK)
+      contentAsJson(r1).as[OrderInBrowse].mustEqual(dummyOrder)
+    }
+
+    "modify browsing order" in {
+      var dummyOrder = new OrderInBrowse(3,List(),5,Some(1),None)
+      when(mockorderbrowseacl.getByUserId(10)).thenReturn(Future(dummyOrder))
+      val r1 = orderTransactionController.getBrowse(10)(consumer_request)
+      status(r1) must equal(OK)
+      contentAsJson(r1).as[OrderInBrowse].mustEqual(dummyOrder)
     }
   }
 
