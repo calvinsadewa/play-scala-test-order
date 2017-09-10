@@ -6,4 +6,4 @@ Assumption:
 
 Test url:
 https://evening-atoll-44036.herokuapp.com
-https://evening-atoll-44036.herokuapp.com/browse/12?API_KEY=Magi3iewdc8icasd
+https://evening-atoll-44036.herokuapp.com/browse/get/12?API_KEY=Magi3iewdc8icasd

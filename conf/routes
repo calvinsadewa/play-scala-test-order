@@ -3,6 +3,7 @@
 # ~~~~
 
 GET     /browse/get/:id                 controllers.OrderTransactionController.getBrowse(id:Int)
+POST    /browse/addproduct              controllers.OrderTransactionController.addProduct()
 POST    /browse/delete/:id              controllers.OrderTransactionController.deleteBrowse(id:Int)
 POST    /browse/applycoupon/:id/:cid    controllers.OrderTransactionController.applyCoupon(id:Int, cid: Int)
 POST    /browse/updateProfile/:id       controllers.OrderTransactionController.updateProfile(id:Int)
