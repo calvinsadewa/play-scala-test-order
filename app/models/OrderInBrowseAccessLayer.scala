@@ -114,6 +114,7 @@ class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExec
     updateDB
   }
 
+  // add coupon to order in browse
   def applyCouponToOrder(userId: Int, couponId: Int): Future[Unit] = getByUserId(userId).map{ _ =>
     db.withConnection { implicit connection =>
       val aff_rows = SQL("""
@@ -124,6 +125,7 @@ class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExec
     }
   } (ec)
 
+  // set profile to order in browse
   def changeProfile(userId: Int,profile: OrderProfile): Future[Unit] = getByUserId(userId).map{ _ =>
     db.withConnection { implicit connection =>
       val aff_rows = SQL("""
@@ -135,6 +137,7 @@ class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExec
     }
   } (ec)
 
+  // delete order in browse
   def delete(userId: Int) = Future {
     db.withConnection { implicit connection =>
       SQL("DELETE FROM OrderInBrowse WHERE user_id = {id}").on('id -> userId).executeUpdate()

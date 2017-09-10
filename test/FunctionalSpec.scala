@@ -1,6 +1,6 @@
 
 import controllers.OrderTransactionController
-import models.{OrderInBrowse, OrderInBrowseAccessLayer}
+import models.{CouponAccessLayer, OrderInBrowse, OrderInBrowseAccessLayer, ProductAccessLayer}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import play.api.test._
@@ -18,7 +18,11 @@ class FunctionalSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures
     import OrderTransactionController._
     import models.OrderJsonConverter._
     val mockorderbrowseacl = mock[OrderInBrowseAccessLayer]
-    val orderTransactionController = new OrderTransactionController(stubControllerComponents(),mockorderbrowseacl)
+    val mockpaacl = mock[ProductAccessLayer]
+    val mockcaacl = mock[CouponAccessLayer]
+    val orderTransactionController = new OrderTransactionController(
+      stubControllerComponents(),
+      mockorderbrowseacl, mockpaacl, mockcaacl)
     val consumer_request = FakeRequest(GET,s"/bla?API_KEY=$CUSTOMER_API_KEY")
     "deny unauthorized request" in {
       val r1 = orderTransactionController.getBrowse(0)(FakeRequest())

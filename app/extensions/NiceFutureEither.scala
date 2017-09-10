@@ -1,10 +1,10 @@
 package extensions
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object NiceFutureEither {
   class EitherFuture[A,B] (problem: Either[A,Future[B]]) {
-    def toFuture() = problem match {
+    def toFuture()(implicit ec:ExecutionContext) = problem match {
       case Left(x) => Future(Left(x))
       case Right(futB) => futB.map(b => Right(b))
     }
