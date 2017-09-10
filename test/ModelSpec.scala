@@ -94,5 +94,34 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
           prod2amount.getOrElse(4, 0) must equal(2)
       }
     }
+
+    "Remember Coupon and Profile" in {
+      val profile = OrderProfile("Jas","977290","askjdlsd.test.com","blasblasds")
+      whenReady(
+        layer.applyCouponToOrder(183,1).flatMap(x =>
+        layer.applyCouponToOrder(183,3)).flatMap(x =>
+        layer.changeProfile(183,profile)).flatMap(x =>
+          layer.getByUserId(183))) {
+        order =>
+          order.CouponId must equal(Some(3))
+          order.Profil mustEqual(Some(profile))
+      }
+    }
+    "Delete" in {
+      whenReady(
+        layer.addProductToOrder(223, ProductAmount(2, 10), 0).flatMap(x =>
+          layer.addProductToOrder(223, ProductAmount(3, 20), 1)).flatMap{x =>
+          layer.addProductToOrder(223, ProductAmount(2, 11), 2)}.flatMap(x =>
+          layer.addProductToOrder(223, ProductAmount(2, 11), 3)).flatMap(x =>
+          layer.addProductToOrder(223, ProductAmount(4, 2), 4)).flatMap(x =>
+          layer.delete(223)).flatMap(x =>
+          layer.getByUserId(223))) {
+        order =>
+
+          order.Version must equal(0)
+          order.UserId must equal(223)
+          order.OrderData.toList.length must equal(0)
+      }
+    }
   }
 }

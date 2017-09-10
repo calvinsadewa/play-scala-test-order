@@ -6,7 +6,8 @@ CREATE TABLE ORDERINBROWSE (
     user_id int NOT NULL,
     order_data text NOT NULL,
     version int NOT NULL,
-    coupon_id int
+    coupon_id int,
+    profile text,
     PRIMARY KEY (user_id)
 );
 

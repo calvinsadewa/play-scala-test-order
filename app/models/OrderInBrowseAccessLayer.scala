@@ -15,9 +15,9 @@ import play.api.libs.json._
 case class ProductAmount(ProductId: Int,Amount: Int)
 case class OrderProfile(name: String, phone_number: String, email: String, address: String)
 case class OrderInBrowse(UserId: Int,
-                         OrderData: List[ProductAmount],
-                         Version: Int,
-                         CouponId: Option[Int])
+                         OrderData: List[ProductAmount] = List(),
+                         Version: Int = 0,
+                         CouponId: Option[Int] = None, Profil: Option[OrderProfile] = None)
 
 object OrderInBrowseAccessLayer {
   object ErrorCode {
@@ -26,21 +26,32 @@ object OrderInBrowseAccessLayer {
   }
 }
 
-@javax.inject.Singleton
-class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionContext) {
-
-
+object OrderJsonConverter {
   implicit val productAmountReads = Json.reads[ProductAmount]
   implicit val productAmountWrite = Json.writes[ProductAmount]
+  implicit val orderProfileReads = Json.reads[OrderProfile]
+  implicit val orderProfileWrite = Json.writes[OrderProfile]
+  implicit val orderInBrowseReads = Json.reads[OrderInBrowse]
+  implicit val orderInBrowseWrite = Json.writes[OrderInBrowse]
+}
+
+@javax.inject.Singleton
+class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionContext) {
+  import OrderJsonConverter._
+  import play.api.libs.json.Reads._
+  import play.api.libs.json.Writes._
+
   private val db = dbapi.database("default")
 
   private val simple = {
     get[Int]("user_id") ~
       get[String]("order_data") ~
       get[Int]("version") ~
-      get[Option[Int]]("coupon_id") map {
-      case uid~data~version~cid =>
-        OrderInBrowse(uid, Json.fromJson[List[ProductAmount]](Json.parse(data)).get, version, cid)
+      get[Option[Int]]("coupon_id") ~
+      get[Option[String]]("profile")map {
+      case uid~data~version~cid~profile =>
+        OrderInBrowse(uid, Json.fromJson[List[ProductAmount]](Json.parse(data)).get, version, cid,
+          profile.map(x => Json.fromJson[OrderProfile](Json.parse(x)).get))
     }
   }
 
@@ -50,11 +61,11 @@ class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExec
     db.withTransaction { implicit connection =>
       val result = SQL("select * from OrderInBrowse where user_id = {id}").on("id" -> userId).as(simple.singleOpt)
       result.getOrElse {
-        val newOrder = OrderInBrowse(userId, List(), 0, None)
-        SQL("insert into OrderInBrowse values ({user_id}, {data}, {version})")
+        val newOrder = OrderInBrowse(userId)
+        SQL("insert into OrderInBrowse (user_id, order_data, version) values ({user_id}, {data}, {version})")
           .on('user_id -> userId,
             'data -> Json.stringify(Json.toJson(newOrder.OrderData)),
-            'version -> 0)
+            'version -> newOrder.Version)
           .executeInsert()
         newOrder
       }
@@ -103,5 +114,30 @@ class OrderInBrowseAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExec
     updateDB
   }
 
+  def applyCouponToOrder(userId: Int, couponId: Int): Future[Unit] = getByUserId(userId).map{ _ =>
+    db.withConnection { implicit connection =>
+      val aff_rows = SQL("""
+                UPDATE OrderInBrowse
+                SET coupon_id = {cid}
+                WHERE user_id = {id}""")
+        .on('cid -> couponId, 'id -> userId).executeUpdate()
+    }
+  } (ec)
 
+  def changeProfile(userId: Int,profile: OrderProfile): Future[Unit] = getByUserId(userId).map{ _ =>
+    db.withConnection { implicit connection =>
+      val aff_rows = SQL("""
+                UPDATE OrderInBrowse
+                SET profile = {profile}
+                WHERE user_id = {id}""")
+        .on('id -> userId,
+          'profile -> Json.stringify(Json.toJson(Some(profile)))).executeUpdate()
+    }
+  } (ec)
+
+  def delete(userId: Int) = Future {
+    db.withConnection { implicit connection =>
+      SQL("DELETE FROM OrderInBrowse WHERE user_id = {id}").on('id -> userId).executeUpdate()
+    }
+  } (ec)
 }

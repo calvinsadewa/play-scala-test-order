@@ -1,5 +1,5 @@
 
-import controllers.HomeController
+import controllers.{HomeController, OrderTransactionController}
 import org.scalatest.concurrent.ScalaFutures
 import play.api.test._
 import play.api.test.Helpers._
@@ -14,6 +14,7 @@ class FunctionalSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures
   }
 
   def homeController = app.injector.instanceOf(classOf[HomeController])
+  def orderTransactionController = app.injector.instanceOf(classOf[OrderTransactionController])
 
   "HomeController" should {
 
@@ -69,4 +70,19 @@ class FunctionalSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures
       contentAsString(list) must include("One computer found")
     }
   }
+
+  "OrderTransactionController" should {
+    "deny unauthorized request" in {
+      val r1 = orderTransactionController.getBrowse(0)(FakeRequest())
+      status(r1) must equal(UNAUTHORIZED)
+    }
+    "pass authorized request" in {
+      import OrderTransactionController._
+      val consumer_request = FakeRequest(GET,s"/bla?API_KEY=$CUSTOMER_API_KEY")
+      val r1 = orderTransactionController.getBrowse(0)(consumer_request)
+      status(r1) must equal(OK)
+    }
+  }
+
+
 }
