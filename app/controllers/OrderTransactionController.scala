@@ -2,7 +2,7 @@ package controllers
 
 import javax.inject._
 
-import models.{OrderInBrowseAccessLayer, ProductAmount}
+import models.{OrderInBrowseAccessLayer, OrderProfile, ProductAmount}
 import play.api.libs.json.Json
 import play.api.mvc._
 
@@ -76,6 +76,33 @@ class OrderTransactionController @Inject()(cc: ControllerComponents, brow_lyr: O
   }
 
   def deleteBrowse(userId: Int) = Action.async {request =>
+    val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
+    deleteAct match {
+      case Left(error) => Future(error)
+      case Right(x) => Future(Ok)
+    }
+  }
+
+  def applyCoupon(userId: Int,couponId: Int) = Action.async {request =>
+    val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
+    deleteAct match {
+      case Left(error) => Future(error)
+      case Right(x) => Future(Ok)
+    }
+  }
+
+  def updateProfile(userId: Int) = Action(parse.json[OrderProfile]).async { request =>
+    val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
+    deleteAct match {
+      case Left(error) => Future(error)
+      case Right(x) => Future(Ok)
+    }
+  }
+
+  def submit(userId: Int) = Action.async {request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
     val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
     deleteAct match {
