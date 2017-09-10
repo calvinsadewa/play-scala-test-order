@@ -47,6 +47,7 @@ object  OrderTransactionController {
 class OrderTransactionController @Inject()(cc: ControllerComponents, brow_lyr: OrderInBrowseAccessLayer)(implicit ec : ExecutionContext) extends AbstractController(cc) {
   import models.OrderJsonConverter._
   import OrderTransactionController.JsonConverter._
+  import extensions.NiceFutureEither._
   def getBrowse(userId: Int) = Action.async { request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
     val ret = checkAuth.right.map(_ => brow_lyr.getByUserId(userId).map(x => Ok(Json.toJson(x))))
@@ -59,19 +60,17 @@ class OrderTransactionController @Inject()(cc: ControllerComponents, brow_lyr: O
 
   def addProduct = Action(parse.json[AddProductData]).async { request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
-    val addProduct = checkAuth.right.map { _ =>
+    val addProduct = Future(checkAuth).map (_.right.map { _ =>
       val productAmount = ProductAmount(request.body.product_id,request.body.quantity)
-      brow_lyr.addProductToOrder(request.body.user_id,productAmount,request.body.version)
-    }
-    val checkError = addProduct.right.map{f => f.map ( _ match {
-      case Left(err_code) => Results.BadRequest(err_code.toString())
-      case Right(version) => Results.Ok(version.toString())
-    })}
-    val ret = checkError
+      brow_lyr.addProductToOrder(request.body.user_id,productAmount,request.body.version).map(_ match {
+        case Left(x) => Left(Results.BadRequest(x.toString))
+        case Right(version) => Right(version)
+      })
+    }.toFuture).flatten.map(_.right.flatMap(x => x))
 
-    ret match {
-      case Left(error) => Future(error)
-      case Right(result) => result
+    addProduct map {
+      case Left(error) => error
+      case Right(version) => Results.Ok(version.toString)
     }
   }
 
@@ -80,30 +79,35 @@ class OrderTransactionController @Inject()(cc: ControllerComponents, brow_lyr: O
     val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
     deleteAct match {
       case Left(error) => Future(error)
-      case Right(x) => Future(Ok)
+      case Right(x) => x.map(y => Ok)
     }
   }
 
   def applyCoupon(userId: Int,couponId: Int) = Action.async {request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
-    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
-    deleteAct match {
+    val applyCouponAct = checkAuth.right.map(_ => brow_lyr.applyCouponToOrder(userId,couponId))
+    applyCouponAct match {
       case Left(error) => Future(error)
-      case Right(x) => Future(Ok)
+      case Right(x) => x.map(y => Ok)
     }
   }
 
   def updateProfile(userId: Int) = Action(parse.json[OrderProfile]).async { request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
-    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
-    deleteAct match {
+    val updateProfileAct = checkAuth.right.map(_ => brow_lyr.changeProfile(userId,request.body))
+    updateProfileAct match {
       case Left(error) => Future(error)
-      case Right(x) => Future(Ok)
+      case Right(x) => x.map(y => Ok)
     }
   }
 
   def submit(userId: Int) = Action.async {request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    // Check current order in browse
+    // Check Product and Coupon
+    // Commit product and coupon
+    // Create new submittedorder
+    // return submitted order
     val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
     deleteAct match {
       case Left(error) => Future(error)
