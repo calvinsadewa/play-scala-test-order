@@ -2,5 +2,9 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-GET     /browse/:id                 controllers.OrderTransactionController.getBrowse(id:Int)
+GET     /browse/get/:id                 controllers.OrderTransactionController.getBrowse(id:Int)
+POST    /browse/delete/:id              controllers.OrderTransactionController.deleteBrowse(id:Int)
+POST    /browse/applycoupon/:id/:cid    controllers.OrderTransactionController.applyCoupon(id:Int, cid: Int)
+POST    /browse/updateProfile/:id       controllers.OrderTransactionController.updateProfile(id:Int)
+POST    /browse/submit/:id              controllers.OrderTransactionController.submit(id:Int)
 
