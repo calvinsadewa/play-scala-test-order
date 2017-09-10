@@ -74,4 +74,13 @@ class OrderTransactionController @Inject()(cc: ControllerComponents, brow_lyr: O
       case Right(result) => result
     }
   }
+
+  def deleteBrowse(userId: Int) = Action.async {request =>
+    val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
+    deleteAct match {
+      case Left(error) => Future(error)
+      case Right(x) => Future(Ok)
+    }
+  }
 }
