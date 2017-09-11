@@ -47,7 +47,8 @@ object  OrderTransactionController {
 class OrderTransactionController @Inject()(cc: ControllerComponents,
                                            brow_lyr: OrderInBrowseAccessLayer,
                                            prod_lyr: ProductAccessLayer,
-                                           coup_lyr: CouponAccessLayer)
+                                           coup_lyr: CouponAccessLayer,
+                                           subt_lyr: SubmittedOrderAccessLayer)
                                           (implicit ec : ExecutionContext) extends AbstractController(cc) {
   import models.OrderJsonConverter._
   import OrderTransactionController.JsonConverter._
@@ -105,6 +106,8 @@ class OrderTransactionController @Inject()(cc: ControllerComponents,
     }
   }
 
+  // submit currently browsed order
+  // return id of submiited order
   def submit(userId: Int) = Action.async {request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
     val getCurrentOrder = Future(checkAuth).map(_.right.map( _ =>
@@ -138,12 +141,13 @@ class OrderTransactionController @Inject()(cc: ControllerComponents,
         val discount_price = optCoup.map(c => initial_price * (1-c.PortionCut) - c.NominalCut).getOrElse(initial_price)
         (discount_price,order)
       }
-      for {(price, order) <- calculatePrice
+      val ret = for {(price, order) <- calculatePrice
            _ <- prod_lyr.commitProducts(order.OrderData)
            _ <- order.CouponId.map(cid => coup_lyr.useCoupon(cid, order.UserId)).getOrElse(Future(0))
-      } yield 1
-
-      false
+           o_id <- subt_lyr.addNewOrder(order.UserId,order.OrderData,order.CouponId,order.Profil.get,price) // add to submitted order
+           _ <- brow_lyr.delete(userId)
+      } yield (o_id)
+      ret
     })
     // Check current order in browse
     // Check Product and Coupon
