@@ -102,4 +102,12 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
         .on('cid -> couponId, 'uid -> userId, 'new_amount -> (amount - 1)).executeUpdate()
     )
   )
+
+  // cancel use coupon
+  def cancelUseCoupon(couponId: Int, userId: Int) = getCouponUserAmount(couponId, userId).map(
+    amount => db.withConnection( implicit connection =>
+      SQL("UPDATE coupon SET amount={new_amount} WHERE coupon_id = {cid} and user_id = {uid}")
+        .on('cid -> couponId, 'uid -> userId, 'new_amount -> (amount + 1)).executeUpdate()
+    )
+  )
 }

@@ -19,6 +19,7 @@ case class SubmittedOrder(Id : Int,
                            Profil: OrderProfile,
                            TotalPrice: Double,
                            Verified: Boolean,
+                           Canceled: Boolean,
                            PaymentProof: Option[Int],
                            ShippingId: Option[Int])
 
@@ -28,6 +29,8 @@ object SubmittedOrderAccessLayer {
     implicit val productAmountWrite = Json.writes[ProductAmount]
     implicit val orderProfileReads = Json.reads[OrderProfile]
     implicit val orderProfileWrite = Json.writes[OrderProfile]
+    implicit val submittedOrderReads = Json.reads[SubmittedOrder]
+    implicit val submittedOrderWrite = Json.writes[SubmittedOrder]
   }
 }
 
@@ -47,11 +50,12 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
       get[String]("profile") ~
       get[Double]("total_price") ~
       get[Boolean]("verified") ~
+      get[Boolean]("canceled") ~
       get[Option[Int]]("payment_proof") ~
       get[Option[Int]]("shipping_id")map {
-      case id~uid~data~cid~profile~total_price~verified~payment_proof~shipping_id =>
+      case id~uid~data~cid~profile~total_price~verified~canceled~payment_proof~shipping_id =>
         SubmittedOrder(id,uid, Json.fromJson[List[ProductAmount]](Json.parse(data)).get, cid,
-          Json.fromJson[OrderProfile](Json.parse(profile)).get,total_price,verified,payment_proof,shipping_id)
+          Json.fromJson[OrderProfile](Json.parse(profile)).get,total_price,verified,canceled,payment_proof,shipping_id)
     }
   }
 
@@ -63,13 +67,108 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
                   profil:OrderProfile, totalPrice: Double): Future[Int] = Future {
     import anorm.SqlParser.int
     db.withConnection{ implicit connection =>
-      SQL("insert into submitted_order (user_id, order_data, version) values ({user_id}, {data}, {version})")
+      SQL(
+        """
+          insert into submitted_order (user_id, order_data, coupon_id, profile, total_price,
+          verified,canceled,payment_proof,shipping_id)
+          values ({user_id}, {order_data}, {coupon_id}, {profile}, {total_price},
+ |          {verified},{canceled},{payment_proof},{shipping_id})
+        """.stripMargin)
         .on('user_id -> userId,
           'order_data -> Json.stringify(Json.toJson(orderData)),
           'coupon_id -> couponId,
           'profile -> Json.stringify(Json.toJson(profil)),
-          'total_price -> totalPrice, 'verified -> false, 'payment_proof -> Option.empty[Int], 'shipping_id -> Option.empty[Int])
+          'total_price -> totalPrice, 'verified -> false, 'canceled -> false,
+          'payment_proof -> Option.empty[Int], 'shipping_id -> Option.empty[Int])
         .executeInsert(int(0).single)
+    }
+  }(ec)
+
+  // get all submitted order for a user
+  def getUserOrders(userId: Int): Future[Seq[SubmittedOrder]] = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          select (user_id, order_data, coupon_id, profile, total_price,
+          verified,canceled,payment_proof,shipping_id) from submitted_order
+          where user_id = {user_id}
+        """.stripMargin)
+        .on('user_id -> userId)
+        .as(submittedOrderParser.*)
+    }
+  }(ec)
+
+  // get all submitted order for a user
+  def getOrder(order_id: Int): Future[Option[SubmittedOrder]] = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          select (user_id, order_data, coupon_id, profile, total_price,
+          verified,canceled,payment_proof,shipping_id) from submitted_order
+          where id = {order_id}
+        """.stripMargin)
+        .on('order_id -> order_id)
+        .as(submittedOrderParser.singleOpt)
+    }
+  }(ec)
+
+  // get all submitted order
+  def getAllOrders(): Future[Seq[SubmittedOrder]] = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          select (user_id, order_data, coupon_id, profile, total_price,
+          verified,canceled,payment_proof,shipping_id) from submitted_order
+        """.stripMargin)
+        .as(submittedOrderParser.*)
+    }
+  }(ec)
+
+  def verifyOrder(order_id : Int): Future[Int] = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          UPDATE submitted_order
+          WHERE id = {order_id}
+          SET verified = TRUE
+        """.stripMargin)
+          .on('order_id -> order_id).executeUpdate()
+    }
+  }(ec)
+
+  def cancelOrder(order_id : Int): Future[Int] = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          UPDATE submitted_order
+          WHERE id = {order_id}
+          SET canceled = TRUE
+        """.stripMargin)
+        .on('order_id -> order_id).executeUpdate()
+    }
+  }(ec)
+
+  def updateShipmentId(order_id: Int, ship_id: Int) = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          UPDATE submitted_order
+          WHERE id = {order_id}
+          SET shipping_id = {ship_id}
+        """.stripMargin)
+        .on('order_id -> order_id, 'ship_id -> ship_id).executeUpdate()
+    }
+  }(ec)
+
+  def updateProof(order_id: Int, user_id: Int, proof: Int) = Future {
+    db.withConnection{ implicit connection =>
+      SQL(
+        """
+          UPDATE submitted_order
+          WHERE id = {order_id} and user_id = {user_id}
+          SET payment_proof = {proof}
+        """.stripMargin)
+        .on('order_id -> order_id, 'user_id -> user_id, 'proof -> proof).executeUpdate()
     }
   }(ec)
 }

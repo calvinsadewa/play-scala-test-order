@@ -8,4 +8,9 @@ POST    /browse/delete/:id              controllers.OrderTransactionController.d
 POST    /browse/applycoupon/:id/:cid    controllers.OrderTransactionController.applyCoupon(id:Int, cid: Int)
 POST    /browse/updateProfile/:id       controllers.OrderTransactionController.updateProfile(id:Int)
 POST    /browse/submit/:id              controllers.OrderTransactionController.submit(id:Int)
-
+GET     /customer/getall/:id            controllers.OrderTransactionController.getCustomerSubmittedOrders(id:Int)
+POST    /customer/updateproof/:id       controllers.OrderTransactionController.updateProofOrder(id: Int)
+GET     /admin/getall                   controllers.OrderTransactionController.getAllSubmittedOrders()
+POST    /admin/verify/:order_id         controllers.OrderTransactionController.verifyOrder(order_id: Int)
+POST    /admin/cancel/:order_id         controllers.OrderTransactionController.cancelOrder(order_id: Int)
+POST    /admin/update_shipping/:order_id/:ship_id   controllers.OrderTransactionController.updateShippingId(order_id: Int, ship_id: Int)

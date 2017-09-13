@@ -21,6 +21,7 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
   // --
 
   "OrderInBrowseAccessLayer" should {
+    import OrderInBrowseAccessLayer.ErrorCode._
     val layer = app.injector.instanceOf(classOf[OrderInBrowseAccessLayer])
     "return empty result with new get" in (
       whenReady(layer.getByUserId(8931)){
@@ -52,6 +53,38 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
       }
     }
 
+    "Error on below zero product" in {
+      whenReady(
+        layer.addProductToOrder(231, ProductAmount(2, 10), 0).flatMap(x =>
+          layer.addProductToOrder(231, ProductAmount(3, 20), 1)).flatMap { x =>
+          layer.addProductToOrder(231, ProductAmount(2, -11), 2)
+        }.map(x => x.mustEqual(Left(ProductAmountBelowZero))).flatMap(x =>
+          layer.getByUserId(231))) {
+        order =>
+          order.Version must equal(2)
+          order.UserId must equal(231)
+          order.OrderData.toList.length must equal(2)
+          val prod2amount = order.OrderData.map(p => (p.ProductId, p.Amount)).toMap
+          prod2amount.getOrElse(2, 0) must equal(10)
+          prod2amount.getOrElse(3, 0) must equal(20)
+      }
+    }
+
+    "Error on not lastest version" in {
+      whenReady(
+        layer.addProductToOrder(232, ProductAmount(2, 10), 0).flatMap(x =>
+          layer.addProductToOrder(232, ProductAmount(3, 20), 0))
+          .map(x => x.mustEqual(Left(NotLastestVersion))).flatMap(x =>
+          layer.getByUserId(232))) {
+        order =>
+          order.Version must equal(1)
+          order.UserId must equal(232)
+          order.OrderData.toList.length must equal(1)
+          val prod2amount = order.OrderData.map(p => (p.ProductId, p.Amount)).toMap
+          prod2amount.getOrElse(2, 0) must equal(10)
+      }
+    }
+
     "Remember Coupon and Profile" in {
       val profile = OrderProfile("Jas","977290","askjdlsd.test.com","blasblasds")
       whenReady(
@@ -79,6 +112,15 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
           order.UserId must equal(223)
           order.OrderData.toList.length must equal(0)
       }
+    }
+  }
+
+  "CouponAccessLayer" should {
+    import CouponAccessLayer.ErrorCode._
+    val layer = app.injector.instanceOf(classOf[CouponAccessLayer])
+
+    "Set coupon correctly" in {
+
     }
   }
 }

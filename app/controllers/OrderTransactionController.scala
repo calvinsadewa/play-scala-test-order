@@ -9,6 +9,7 @@ import play.api.mvc._
 import scala.concurrent.{ExecutionContext, Future}
 
 case class AddProductData(user_id: Int,product_id: Int,quantity: Int,version: Int)
+case class UpdateProofData(order_id: Int, proof: Int )
 
 object  OrderTransactionController {
   val API_KEY = "API_KEY"
@@ -18,6 +19,8 @@ object  OrderTransactionController {
   object JsonConverter {
     implicit val addProductDataReader = Json.reads[AddProductData]
     implicit val addProductDataWriter = Json.writes[AddProductData]
+    implicit val updateProofDataReader = Json.reads[UpdateProofData]
+    implicit val updateProofDataWriter = Json.writes[UpdateProofData]
   }
 
   def CheckCustomerAuth[A](request: Request[A]) = {
@@ -107,7 +110,7 @@ class OrderTransactionController @Inject()(cc: ControllerComponents,
   }
 
   // submit currently browsed order
-  // return id of submiited order
+  // return id of submitted order
   def submit(userId: Int) = Action.async {request =>
     val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
     val getCurrentOrder = Future(checkAuth).map(_.right.map( _ =>
@@ -148,15 +151,85 @@ class OrderTransactionController @Inject()(cc: ControllerComponents,
            _ <- brow_lyr.delete(userId)
       } yield (o_id)
       ret
+    }).map( _.toFuture).flatten
+    submitOrder.map( _ match {
+      case Left(err) => err
+      case Right(ord_id) => Ok(ord_id.toString)
     })
-    // Check current order in browse
-    // Check Product and Coupon
-    // Create new submittedorder and product and coupon
-    // return submitted order
-    val deleteAct = checkAuth.right.map(_ => brow_lyr.delete(userId))
-    deleteAct match {
-      case Left(error) => Future(error)
-      case Right(x) => Future(Ok)
-    }
+  }
+
+  def getCustomerSubmittedOrders(userId:Int) = Action.async {request =>
+    import SubmittedOrderAccessLayer.JsonConverter._
+    val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    val getOrders = Future.successful(checkAuth)
+      .map(_.right.map(none => subt_lyr.getUserOrders(userId)).toFuture).flatten
+    getOrders.map( _ match {
+      case Left(result) => result
+      case Right(seqs) => Ok(Json.toJson(seqs.toList))
+    })
+  }
+
+  def getAllSubmittedOrders() = Action.async {request =>
+    import SubmittedOrderAccessLayer.JsonConverter._
+    val checkAuth = OrderTransactionController.CheckAdminAuth(request)
+    val getOrders = Future.successful(checkAuth)
+      .map(_.right.map(none => subt_lyr.getAllOrders()).toFuture).flatten
+    getOrders.map( _ match {
+      case Left(result) => result
+      case Right(seqs) => Ok(Json.toJson(seqs))
+    })
+  }
+
+  def updateProofOrder(user_id: Int) = Action(parse.json[UpdateProofData]).async {request =>
+    import SubmittedOrderAccessLayer.JsonConverter._
+    val checkAuth = OrderTransactionController.CheckCustomerAuth(request)
+    val getOrders = Future.successful(checkAuth)
+      .map(_.right.map(none => subt_lyr
+        .updateProof(order_id = request.body.order_id, user_id = user_id, proof = request.body.proof)).toFuture).flatten
+    getOrders.map( _ match {
+      case Left(result) => result
+      case Right(_) => Ok
+    })
+  }
+
+  def verifyOrder(order_id: Int) = Action.async {request =>
+    val checkAuth = OrderTransactionController.CheckAdminAuth(request)
+    val getOrders = Future.successful(checkAuth)
+      .map(_.right.map(none => subt_lyr
+        .verifyOrder(order_id)).toFuture).flatten
+    getOrders.map( _ match {
+      case Left(result) => result
+      case Right(_) => Ok
+    })
+  }
+
+  def cancelOrder(order_id: Int) = Action.async {request =>
+    val checkAuth = OrderTransactionController.CheckAdminAuth(request)
+    val getOrders = Future.successful(checkAuth)
+      .map(_.right.map(none => {
+        val fut = for {
+          opt_order <- subt_lyr.getOrder(order_id)
+          if opt_order.isDefined
+          order = opt_order.get
+          _ <- subt_lyr.cancelOrder(order.Id)
+          _ <- order.CouponId.map(cid => coup_lyr.cancelUseCoupon(cid,order.UserId)).getOrElse(Future(0))
+          _ <- prod_lyr.uncommitProducts(order.OrderData)
+        } yield (0)
+      }))
+    getOrders.map( _ match {
+      case Left(result) => result
+      case Right(_) => Ok
+    })
+  }
+
+  def updateShippingId(order_id: Int, ship_id: Int) = Action.async {request =>
+    val checkAuth = OrderTransactionController.CheckAdminAuth(request)
+    val getOrders = Future.successful(checkAuth)
+      .map(_.right.map(none => subt_lyr
+        .updateShipmentId(order_id, ship_id)).toFuture).flatten
+    getOrders.map( _ match {
+      case Left(result) => result
+      case Right(_) => Ok
+    })
   }
 }

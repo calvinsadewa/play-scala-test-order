@@ -38,7 +38,16 @@ class ProductAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionC
     db.withTransaction { implicit connection =>
       productAmounts.foreach { p =>
         val amount = SQL("SELECT amount FROM products WHERE id={product_id}").on('product_id -> p.ProductId).as(scalar[Long].single)
-        SQL("UPDATE products SET amount = {new_amount} WHERE id={product_id}").on('product_id -> p.ProductId, 'new_amount -> (amount - 1))
+        SQL("UPDATE products SET amount = {new_amount} WHERE id={product_id}").on('product_id -> p.ProductId, 'new_amount -> (amount - p.Amount))
+      }
+    }
+  }(ec)
+
+  def uncommitProducts(productAmounts: Seq[ProductAmount]) = Future {
+    db.withTransaction { implicit connection =>
+      productAmounts.foreach { p =>
+        val amount = SQL("SELECT amount FROM products WHERE id={product_id}").on('product_id -> p.ProductId).as(scalar[Long].single)
+        SQL("UPDATE products SET amount = {new_amount} WHERE id={product_id}").on('product_id -> p.ProductId, 'new_amount -> (amount + p.Amount))
       }
     }
   }(ec)
