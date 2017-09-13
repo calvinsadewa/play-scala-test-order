@@ -11,6 +11,7 @@ import play.api.libs.json.Json
 import scala.concurrent.Future
 
 object CouponAccessLayer{
+  case class Coupon(Id:Int, PortionCut: Double, NominalCut: Double, ValidStart: DateTime, ValidEnd: DateTime)
   object ErrorCode {
     val CouponNotValid = 0
     val UserDoNotHaveCoupon = 1
@@ -21,10 +22,9 @@ object CouponAccessLayer{
 @javax.inject.Singleton
 class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionContext){
   private val db = dbapi.database("default")
+  import CouponAccessLayer._
   import CouponAccessLayer.ErrorCode._
   import extensions.NiceFutureEither._
-
-  case class Coupon(Id:Int, PortionCut: Double, NominalCut: Double, ValidStart: DateTime, ValidEnd: DateTime)
 
   private val couponParser = {
     get[Int]("id") ~
@@ -55,7 +55,7 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
   // get coupon
   def getCoupon(couponId:Int) = Future {
     db.withConnection( implicit connection =>
-      SQL("SELECT (id,portion_cut, nominal_cut, valid_start, valid_end) coupons WHERE id = {cid}").on('cid -> couponId)
+      SQL("SELECT * FROM coupons WHERE id = {cid}").on('cid -> couponId)
         .as(couponParser.singleOpt)
     )
   }(ec)
@@ -64,7 +64,7 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
   def setCoupon(coupon: Coupon) = Future {
     db.withTransaction { implicit connenction =>
       SQL("DELETE FROM coupons WHERE id={cid}").on('cid -> coupon.Id).execute()
-      SQL("INSERT FROM coupons (id,portion_cut, nominal_cut, valid_start, valid_end) VALUES ({cid}, {pcut}, {ncut}, {vstart}, {vend})")
+      SQL("INSERT INTO coupons (id,portion_cut, nominal_cut, valid_start, valid_end) VALUES ({cid}, {pcut}, {ncut}, {vstart}, {vend})")
         .on('cid -> coupon.Id,
           'pcut -> coupon.PortionCut,
           'ncut -> coupon.NominalCut,
@@ -79,7 +79,7 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
       SQL("DELETE FROM coupon_users WHERE coupon_id={cid} and user_id={uid}")
         .on('cid -> couponId,
           'uid -> userId).execute()
-      SQL("INSERT FROM coupon_users (coupon_id,user_id, amount) VALUES ({cid}, {pid}, {amount})")
+      SQL("INSERT INTO coupon_users (coupon_id,user_id, amount) VALUES ({cid}, {pid}, {amount})")
         .on('cid -> couponId,
           'pid -> userId,
           'amount -> amount).executeInsert()
@@ -89,7 +89,7 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
   // get coupon amount for user
   def getCouponUserAmount(couponId: Int, userId: Int) = Future {
     db.withConnection( implicit connection =>
-      SQL("SELECT amount coupon_users WHERE coupon_id = {cid} and user_id = {uid}")
+      SQL("SELECT amount FROM coupon_users WHERE coupon_id = {cid} and user_id = {uid}")
         .on('cid -> couponId, 'uid -> userId)
         .as(scalar[Int].singleOpt).getOrElse(0)
     )
@@ -98,7 +98,7 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
   // use coupon
   def useCoupon(couponId: Int, userId: Int) = getCouponUserAmount(couponId, userId).map(
     amount => db.withConnection( implicit connection =>
-      SQL("UPDATE coupon SET amount={new_amount} WHERE coupon_id = {cid} and user_id = {uid}")
+      SQL("UPDATE coupon_users SET amount={new_amount} WHERE coupon_id = {cid} and user_id = {uid}")
         .on('cid -> couponId, 'uid -> userId, 'new_amount -> (amount - 1)).executeUpdate()
     )
   )
@@ -106,7 +106,7 @@ class CouponAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExecutionCo
   // cancel use coupon
   def cancelUseCoupon(couponId: Int, userId: Int) = getCouponUserAmount(couponId, userId).map(
     amount => db.withConnection( implicit connection =>
-      SQL("UPDATE coupon SET amount={new_amount} WHERE coupon_id = {cid} and user_id = {uid}")
+      SQL("UPDATE coupon_users SET amount={new_amount} WHERE coupon_id = {cid} and user_id = {uid}")
         .on('cid -> couponId, 'uid -> userId, 'new_amount -> (amount + 1)).executeUpdate()
     )
   )

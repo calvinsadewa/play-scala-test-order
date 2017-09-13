@@ -1,4 +1,5 @@
 
+import org.joda.time.DateTime
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatestplus.play._
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
@@ -117,10 +118,54 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
 
   "CouponAccessLayer" should {
     import CouponAccessLayer.ErrorCode._
+    import CouponAccessLayer._
     val layer = app.injector.instanceOf(classOf[CouponAccessLayer])
 
-    "Set coupon correctly" in {
+    "Run scenario right" in {
+      val dummyCoupon = Coupon(29,0.2,2000,DateTime.now.minusDays(3), DateTime.now().plusDays(54))
+      val invalidCoupon = Coupon(32,0.1,3000,DateTime.now.minusDays(3), DateTime.now().minusDays(1))
+      val first_part = for {
+        _ <- layer.setCoupon(dummyCoupon)
+        getCoupon <- layer.getCoupon(dummyCoupon.Id)
+        _ <- layer.setCoupon(invalidCoupon)
+        getCoupon2 <- layer.getCoupon(invalidCoupon.Id)
+        _ <- layer.setCouponUser(dummyCoupon.Id,1,1)
+        _ <- layer.setCouponUser(dummyCoupon.Id,2,0)
+        _ <- layer.setCouponUser(invalidCoupon.Id,1,2)
+      } yield {
+        getCoupon.mustEqual(Some(dummyCoupon))
+        getCoupon2.mustEqual(Some(invalidCoupon))
+      }
+      val second_part = for {
+        _ <- first_part
+        amountOne <- layer.getCouponUserAmount(dummyCoupon.Id,1)
+        amount2 <- layer.getCouponUserAmount(dummyCoupon.Id,2)
+        amount3 <- layer.getCouponUserAmount(invalidCoupon.Id,1)
+        check1 <- layer.checkCoupon(dummyCoupon.Id,1)
+        check2 <- layer.checkCoupon(dummyCoupon.Id,2)
+        check3 <- layer.checkCoupon(invalidCoupon.Id,1)
+        check4 <- layer.checkCoupon(9839,1)
+      } yield {
+        Int.box(amountOne).mustEqual(1)
+        Int.box(amount2).mustEqual(0)
+        Int.box(amount3).mustEqual(2)
+        check1.mustEqual(Right(dummyCoupon))
+        check2.mustEqual(Left(UserDoNotHaveCoupon))
+        check3.mustEqual(Left(CouponNotValid))
+        check4.mustEqual(Left(CouponNotFound))
+      }
+      val third_part = for {
+        _ <- second_part
+        _ <- layer.useCoupon(dummyCoupon.Id,1)
+        amount1 <- layer.getCouponUserAmount(dummyCoupon.Id,1)
+        _ <- layer.cancelUseCoupon(dummyCoupon.Id,1)
+        amount2 <- layer.getCouponUserAmount(dummyCoupon.Id,1)
 
+      } yield {
+        Int.box(amount1).mustEqual(0)
+        Int.box(amount2).mustEqual(1)
+      }
+      whenReady(third_part) {_ => None}
     }
   }
 }
