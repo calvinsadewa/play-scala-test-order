@@ -168,4 +168,34 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
       whenReady(third_part) {_ => None}
     }
   }
+
+  "ProductAccessLayer" should {
+    import ProductAccessLayer._
+    val layer = app.injector.instanceOf(classOf[ProductAccessLayer])
+    "Run scenario right" in {
+      val dummyProduct = Product(1,100,9000)
+      val productAmounts1 = Seq(ProductAmount(1,10))
+      val productAmounts2 = Seq(ProductAmount(1,100))
+      val scenario = for {
+        _ <- layer.setProduct(dummyProduct)
+        products1 <- layer.getProducts(Seq(dummyProduct.ProductId))
+        check1 <- layer.checkProducts(productAmounts1)
+        _ <- layer.commitProducts(productAmounts1)
+        products2 <- layer.getProducts(Seq(dummyProduct.ProductId))
+        check2 <- layer.checkProducts(productAmounts2)
+        _ <- layer.uncommitProducts(productAmounts1)
+        products3 <- layer.getProducts(Seq(dummyProduct.ProductId))
+      } yield {
+        products1.length.mustEqual(1)
+        products1(0).mustEqual(dummyProduct)
+        check1.mustEqual(true)
+        products2.length.mustEqual(1)
+        products2(0).mustEqual(dummyProduct.copy(Amount = 90))
+        check2.mustEqual(false)
+        products3.length.mustEqual(1)
+        products3(0).mustEqual(dummyProduct)
+      }
+      whenReady(scenario) {_ => None}
+    }
+  }
 }
