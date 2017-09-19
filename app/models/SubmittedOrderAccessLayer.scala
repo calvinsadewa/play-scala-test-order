@@ -80,7 +80,7 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
           'profile -> Json.stringify(Json.toJson(profil)),
           'total_price -> totalPrice, 'verified -> false, 'canceled -> false,
           'payment_proof -> Option.empty[Int], 'shipping_id -> Option.empty[Int])
-        .executeInsert(int(0).single)
+        .executeInsert(int(1).single)
     }
   }(ec)
 
@@ -89,8 +89,7 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
     db.withConnection{ implicit connection =>
       SQL(
         """
-          select (user_id, order_data, coupon_id, profile, total_price,
-          verified,canceled,payment_proof,shipping_id) from submitted_order
+          select * from submitted_order
           where user_id = {user_id}
         """.stripMargin)
         .on('user_id -> userId)
@@ -103,8 +102,7 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
     db.withConnection{ implicit connection =>
       SQL(
         """
-          select (user_id, order_data, coupon_id, profile, total_price,
-          verified,canceled,payment_proof,shipping_id) from submitted_order
+          select * from submitted_order
           where id = {order_id}
         """.stripMargin)
         .on('order_id -> order_id)
@@ -117,8 +115,7 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
     db.withConnection{ implicit connection =>
       SQL(
         """
-          select (user_id, order_data, coupon_id, profile, total_price,
-          verified,canceled,payment_proof,shipping_id) from submitted_order
+          select * from submitted_order
         """.stripMargin)
         .as(submittedOrderParser.*)
     }
@@ -129,8 +126,8 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
       SQL(
         """
           UPDATE submitted_order
-          WHERE id = {order_id}
           SET verified = TRUE
+          WHERE id = {order_id};
         """.stripMargin)
           .on('order_id -> order_id).executeUpdate()
     }
@@ -141,8 +138,8 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
       SQL(
         """
           UPDATE submitted_order
-          WHERE id = {order_id}
           SET canceled = TRUE
+          WHERE id = {order_id};
         """.stripMargin)
         .on('order_id -> order_id).executeUpdate()
     }
@@ -153,8 +150,8 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
       SQL(
         """
           UPDATE submitted_order
-          WHERE id = {order_id}
           SET shipping_id = {ship_id}
+          WHERE id = {order_id}
         """.stripMargin)
         .on('order_id -> order_id, 'ship_id -> ship_id).executeUpdate()
     }
@@ -165,8 +162,8 @@ class SubmittedOrderAccessLayer @Inject()(dbapi: DBApi)(implicit ec: DatabaseExe
       SQL(
         """
           UPDATE submitted_order
-          WHERE id = {order_id} and user_id = {user_id}
           SET payment_proof = {proof}
+          WHERE id = {order_id} and user_id = {user_id}
         """.stripMargin)
         .on('order_id -> order_id, 'user_id -> user_id, 'proof -> proof).executeUpdate()
     }

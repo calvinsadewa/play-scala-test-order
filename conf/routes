@@ -14,3 +14,6 @@ GET     /admin/getall                   controllers.OrderTransactionController.g
 POST    /admin/verify/:order_id         controllers.OrderTransactionController.verifyOrder(order_id: Int)
 POST    /admin/cancel/:order_id         controllers.OrderTransactionController.cancelOrder(order_id: Int)
 POST    /admin/update_shipping/:order_id/:ship_id   controllers.OrderTransactionController.updateShippingId(order_id: Int, ship_id: Int)
+POST    /set/product                    controllers.SetterController.setProduct()
+POST    /set/coupon                     controllers.SetterController.setCoupon()
+POST    /set/couponuser/:cid/:uid/:amount   controllers.SetterController.setCouponUser(cid: Int, uid: Int, amount: Int)

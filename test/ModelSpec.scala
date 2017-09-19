@@ -198,4 +198,81 @@ class ModelSpec extends PlaySpec with GuiceOneAppPerSuite with ScalaFutures {
       whenReady(scenario) {_ => None}
     }
   }
+
+  "SubmittedOrderAccessLayer" should {
+    val layer = app.injector.instanceOf(classOf[SubmittedOrderAccessLayer])
+    val user1 = 1
+    val user2 = 2
+    val prods1 = List(ProductAmount(1,10),ProductAmount(3,2))
+    val prods2 = List(ProductAmount(7,2),ProductAmount(8,8))
+    val cid1 = Option.empty[Int]
+    val cid2 = Option(3)
+    val prof1 = OrderProfile("asdsad","08273123","sadsad@asd.com","JL kalaksksasd")
+    val prof2 = OrderProfile("bsasdsad","08472123","asdijwds@asd.com","JL askldjlkasd")
+    val total1 = 10000.3
+    val total2 = 10222.2
+    val shipid1 = 30
+    val shipid2 = 93
+    val proof1 = 86713
+    val proof2 = 93901
+    "Run scenario right" in {
+      val scenario = for {
+        sid1 <- layer.addNewOrder(user1,prods1,cid1,prof1,total1)
+        sid2 <- layer.addNewOrder(user2,prods2,cid2,prof2,total2)
+        sid3 <- layer.addNewOrder(user1,prods2,cid2,prof1,total2)
+        sou1 <- layer.getUserOrders(user1)
+        sou2 <- layer.getUserOrders(user2)
+        allo <- layer.getAllOrders()
+        _ <- layer.cancelOrder(sid3)
+        co3 <- layer.getOrder(sid3)
+        _ <- layer.updateShipmentId(sid1,shipid1)
+        _ <- layer.updateShipmentId(sid2,shipid2)
+        _ <- layer.updateProof(sid1,user1,proof1)
+        _ <- layer.updateProof(sid2,user2,proof2)
+        _ <- layer.verifyOrder(sid1)
+        _ <- layer.verifyOrder(sid2)
+        vo1 <- layer.getOrder(sid1)
+        vo2 <- layer.getOrder(sid2)
+      } yield (sid1,sid2,sid3,sou1,sou2,allo,co3,vo1,vo2)
+      whenReady(scenario) { _ match {
+        case (sid1,sid2,sid3,sou1,sou2,allo,co3,vo1,vo2) => {
+          sou1.length mustEqual(2)
+          sou2.length mustEqual(1)
+          val so1 = sou1.filter(so => so.Id == sid1)(0)
+          val so2 = sou2.filter(so => so.Id == sid2)(0)
+          val so3 = sou1.filter(so => so.Id == sid3)(0)
+          so1.OrderData.mustEqual(prods1)
+          so2.OrderData.mustEqual(prods2)
+          so3.OrderData.mustEqual(prods2)
+          so1.CouponId mustEqual(cid1)
+          so2.CouponId mustEqual(cid2)
+          so3.CouponId mustEqual(cid2)
+          so1.Profil mustEqual(prof1)
+          so2.Profil mustEqual(prof2)
+          so3.Profil mustEqual(prof1)
+          so1.TotalPrice mustEqual(total1)
+          so2.TotalPrice mustEqual(total2)
+          so3.TotalPrice mustEqual(total2)
+
+          def checknewso(so: SubmittedOrder): Unit = {
+            so.Verified mustEqual(false)
+            so.Canceled mustEqual(false)
+            so.ShippingId mustEqual(Option.empty[Int])
+          }
+          checknewso(so1)
+          checknewso(so2)
+          checknewso(so3)
+          allo.length mustEqual(3)
+          allo.exists(so => so.Id == sid1)
+          allo.exists(so => so.Id == sid2)
+          allo.exists(so => so.Id == sid3)
+          co3.get.Canceled mustEqual(true)
+          co3.get.Verified mustEqual(false)
+          vo1.get.mustEqual(so1.copy(ShippingId = Some(shipid1), Verified = true, PaymentProof = Some(proof1)))
+          vo2.get.mustEqual(so2.copy(ShippingId = Some(shipid2), Verified = true, PaymentProof = Some(proof2)))
+        }
+      }
+      }
+    }
+  }
 }
